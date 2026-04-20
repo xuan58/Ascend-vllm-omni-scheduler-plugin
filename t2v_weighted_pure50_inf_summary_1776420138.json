@@ -1,0 +1,46 @@
+{
+  "round_name": "pure_image_weighted_50req_conc50_rps_inf",
+  "total_requests": 50,
+  "success_rate": 0.98,
+  "mean_e2e_s": 3165.8630704307557,
+  "p99_e2e_s": 5747.631398456097,
+  "throughput_rps": 0.008417141123088605,
+  "mean_create_api_s": 0.19488333528395743,
+  "errors": 1,
+  "error_samples": [
+    "poll exception: RemoteProtocolError('Server disconnected without sending a response.')"
+  ],
+  "sampled_counts": {
+    "case1_854x480_s3_f80_fps16": 5,
+    "case2_854x480_s4_f120_fps24": 12,
+    "case3_1280x720_s6_f80_fps16": 33
+  },
+  "per_case": {
+    "case2_854x480_s4_f120_fps24": {
+      "requests": 12,
+      "success_rate": 1.0,
+      "mean_e2e_s": 3467.4325531323752,
+      "p99_e2e_s": 5644.17973473072,
+      "errors": 0,
+      "error_samples": []
+    },
+    "case3_1280x720_s6_f80_fps16": {
+      "requests": 33,
+      "success_rate": 0.9696969696969697,
+      "mean_e2e_s": 2840.062991250645,
+      "p99_e2e_s": 5753.069353895187,
+      "errors": 1,
+      "error_samples": [
+        "poll exception: RemoteProtocolError('Server disconnected without sending a response.')"
+      ]
+    },
+    "case1_854x480_s3_f80_fps16": {
+      "requests": 5,
+      "success_rate": 1.0,
+      "mean_e2e_s": 4592.376834535598,
+      "p99_e2e_s": 5449.958460454941,
+      "errors": 0,
+      "error_samples": []
+    }
+  }
+}
