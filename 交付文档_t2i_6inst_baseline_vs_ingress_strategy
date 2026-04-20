@@ -1,0 +1,168 @@
+# 交付文档：T2I 六实例 Baseline vs Ingress Strategy（2026-04-18）
+
+## 1. 交付目标
+
+本交付汇总以下内容：
+
+- 最近一次 T2I baseline 运行脚本与产物
+- 最近一次 T2I 策略组（服务端 ingress 调度）运行脚本与产物
+- 两组结果对比
+- 调度插件（单文件版）与接入方式（不修改纯净镜像，只做运行时注入）
+
+---
+
+## 2. 核心脚本清单
+
+### 2.1 Baseline 侧
+
+- 启动并跑 baseline：`run_pure_baseline_6inst_500.sh`
+- 启动 6 实例（纯净）：`start_tp1_6inst_pure_baseline.sh`
+- 500 并发采样与统计：`run_6inst_baseline_500_detailed.py`
+- RR 代理（含到达时间日志）：`rr_vllm_http_proxy_timing.py`
+
+### 2.2 Strategy 侧（Ingress 调度）
+
+- 启动并跑策略：`run_strategy_ingress_6inst_500.sh`
+- 启动 6 实例并注入插件：`start_tp1_6inst_ingress_strategy.sh`
+- 复用同一统计脚本：`run_6inst_baseline_500_detailed.py`
+- 复用同一 RR 代理：`rr_vllm_http_proxy_timing.py`
+
+### 2.3 插件与接线工具
+
+- 单文件插件：`server_ingress_plugin/image_ingress_scheduler_single.py`
+- api_server 运行时 patch 脚本：`server_ingress_plugin/patch_api_server_ingress_singlefile.py`
+
+---
+
+## 3. 最近一次实验结果文件
+
+### 3.1 Baseline（最近一次）
+
+- TAG: `datasetc_6inst_baseline_500_20260418_201630`
+- 汇总：`reports/datasetc_6inst_baseline_500_20260418_201630_summary.json`
+- 分类型：`reports/datasetc_6inst_baseline_500_20260418_201630_by_type.csv`
+- 明细：`reports/datasetc_6inst_baseline_500_20260418_201630_requests.csv`
+- 代理到达日志：`reports/datasetc_6inst_baseline_500_20260418_201630_proxy_timing.jsonl`
+
+### 3.2 Strategy（最近一次）
+
+- TAG: `datasetc_6inst_strategy_ingress_500_20260418_223248`
+- 汇总：`reports/datasetc_6inst_strategy_ingress_500_20260418_223248_summary.json`
+- 分类型：`reports/datasetc_6inst_strategy_ingress_500_20260418_223248_by_type.csv`
+- 明细：`reports/datasetc_6inst_strategy_ingress_500_20260418_223248_requests.csv`
+- 代理到达日志：`reports/datasetc_6inst_strategy_ingress_500_20260418_223248_proxy_timing.jsonl`
+
+---
+
+## 4. 结果对比（上述两组）
+
+### 4.1 Overall
+
+| 指标 | Baseline | Strategy | 变化 |
+|---|---:|---:|---:|
+| total_requests | 500 | 500 | - |
+| success_rate | 1.0000 | 1.0000 | 持平 |
+| mean_e2e_s | 1310.03 | 1016.57 | **-22.40%** |
+| p99_e2e_s | 2686.40 | 2587.88 | **-3.67%** |
+| throughput_rps | 0.17799 | 0.18488 | **+3.87%** |
+
+### 4.2 按类型 mean E2E（s）
+
+| req_type | Baseline | Strategy | 变化 |
+|---|---:|---:|---:|
+| 512x512_20 | 1199.60 | 607.91 | **-49.32%** |
+| 768x768_20 | 1251.27 | 653.77 | **-47.75%** |
+| 1024x1024_25 | 1377.66 | 1172.00 | **-14.93%** |
+| 1536x1536_35 | 1315.59 | 1515.75 | **+15.21%** |
+
+结论：策略组对低分辨率请求收益显著；高分辨率 `1536` 在该轮有变差，需要继续调参平衡公平性与吞吐。
+
+---
+
+## 5. 插件能力说明（单文件版）
+
+插件文件：`server_ingress_plugin/image_ingress_scheduler_single.py`
+
+能力：
+
+1. 每实例一个 ingress dispatcher（进程内单例）
+2. 按请求类型 `width x height x steps` 分队列
+3. DRR 选队列 + `max_wait` 组批（凑不到不死等）
+4. 批执行后按原请求拆分结果返回
+5. 支持参数化：
+   - `OMNI_INGRESS_BATCH_DRR_ENABLE`
+   - `OMNI_INGRESS_BATCH_CAPS`
+   - `OMNI_INGRESS_DRR_MAX_WAIT_MS`
+   - `OMNI_INGRESS_DRR_STRICT_BATCHING`
+   - `OMNI_INGRESS_DRR_Q_BASE`
+   - `OMNI_INGRESS_DRR_AGE_THRESHOLD_MS`
+   - `OMNI_INGRESS_DRR_AGE_BONUS_FACTOR`
+   - `OMNI_INGRESS_DRR_QUEUE_BUDGET_OVERRIDES`
+
+---
+
+## 6. 插件如何接入镜像源码
+
+接线方式是**运行时注入**，不是重建镜像：
+
+1. 起容器后，把插件文件拷入容器代码目录：
+   - `docker cp ... image_ingress_scheduler_single.py`
+2. 拷入 patch 脚本并在容器内执行：
+   - `python3 /tmp/patch_api_server_ingress_singlefile.py`
+3. 启动服务时通过环境变量启用插件与参数。
+
+---
+
+## 7. 当前策略默认参数（已更新）
+
+在 `start_tp1_6inst_ingress_strategy.sh` 中，当前默认值为：
+
+- `OMNI_INGRESS_DRR_MAX_WAIT_MS=800`
+- `OMNI_INGRESS_DRR_QUEUE_BUDGET_OVERRIDES={"512x512_20":8,"768x768_20":6,"1024x1024_25":4,"1536x1536_35":2}`
+- `OMNI_INGRESS_BATCH_CAPS={"512x512_20":4,"768x768_20":4,"1024x1024_25":1,"1536x1536_35":1}`
+- `OMNI_INGRESS_DRR_Q_BASE=12`
+- `OMNI_INGRESS_DRR_AGE_THRESHOLD_MS=2000`
+- `OMNI_INGRESS_DRR_AGE_BONUS_FACTOR=1.0`
+- `OMNI_INGRESS_DRR_STRICT_BATCHING=0`
+
+---
+
+## 8. 后台运行（对照/复跑）
+
+### 8.1 Baseline 后台
+
+```bash
+TAG=datasetc_6inst_baseline_500_$(date +%Y%m%d_%H%M%S)
+nohup env TAG="$TAG" GPU_LIST="0,1,2,3,4,5" bash run_pure_baseline_6inst_500.sh > "reports/${TAG}.nohup.log" 2>&1 < /dev/null &
+```
+
+### 8.2 Strategy 后台
+
+```bash
+TAG=datasetc_6inst_strategy_ingress_500_$(date +%Y%m%d_%H%M%S)
+nohup env TAG="$TAG" GPU_LIST="0,1,2,3,4,5" bash run_strategy_ingress_6inst_500.sh > "reports/${TAG}.nohup.log" 2>&1 < /dev/null &
+```
+
+### 8.3 监控
+
+```bash
+tail -f reports/<TAG>.nohup.log
+```
+
+```bash
+watch -n 5 '
+for p in 18291 18292 18293 18294 18295 18296 28093; do
+  code=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:$p/health || echo 000)
+  echo "$p $code"
+done
+'
+```
+
+---
+
+## 9. 交付结论
+
+- Baseline 与 Strategy 两组实验数据已落盘；
+- Strategy 使用服务端 ingress 插件化调度，且以运行时 patch 方式接入；
+- 在当前最近一组对比中，Strategy 对总体 mean E2E 与吞吐有正向收益；
+- 后续可继续围绕 `max_wait`、`age_threshold`、`queue budget` 做分辨率公平性优化。

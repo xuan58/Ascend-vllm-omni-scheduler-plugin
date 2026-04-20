@@ -1,0 +1,68 @@
+{
+  "overall": {
+    "total_requests": 500,
+    "success_count": 500,
+    "success_rate": 1.0,
+    "mean_e2e_s": 1310.0280921669273,
+    "p99_e2e_s": 2686.4016405398174,
+    "throughput_rps": 0.17799215404487032,
+    "wall_time_s": 2809.112585232011
+  },
+  "by_type": {
+    "1024x1024_25": {
+      "count": 218,
+      "success_count": 218,
+      "success_rate": 1.0,
+      "mean_e2e_s": 1377.6634196517205,
+      "p99_e2e_s": 2753.057696739839
+    },
+    "1536x1536_35": {
+      "count": 83,
+      "success_count": 83,
+      "success_rate": 1.0,
+      "mean_e2e_s": 1315.587870443056,
+      "p99_e2e_s": 2527.834161186839
+    },
+    "512x512_20": {
+      "count": 68,
+      "success_count": 68,
+      "success_rate": 1.0,
+      "mean_e2e_s": 1199.6004904557537,
+      "p99_e2e_s": 2577.8960909226803
+    },
+    "768x768_20": {
+      "count": 131,
+      "success_count": 131,
+      "success_rate": 1.0,
+      "mean_e2e_s": 1251.2732366536166,
+      "p99_e2e_s": 2647.371511152084
+    }
+  },
+  "request_mix": [
+    {
+      "width": 512,
+      "height": 512,
+      "steps": 20,
+      "weight": 0.15
+    },
+    {
+      "width": 768,
+      "height": 768,
+      "steps": 20,
+      "weight": 0.25
+    },
+    {
+      "width": 1024,
+      "height": 1024,
+      "steps": 25,
+      "weight": 0.45
+    },
+    {
+      "width": 1536,
+      "height": 1536,
+      "steps": 35,
+      "weight": 0.15
+    }
+  ],
+  "notes": "arrival_ts is captured at RR proxy ingress; send_ts/return_ts are captured at client."
+}
